@@ -1,0 +1,39 @@
+# CutIng (미용실 예약 관리 플랫폼)
+
+Spring Boot와 Vue.js 기반의 종합 미용실 뷰티 플랫폼입니다. 고객과 스타일리스트(미용사)가 편리하게 예약과 결제를 진행하고 리뷰 및 포트폴리오를 관리할 수 있습니다.
+
+## 주요 기능
+
+*   **고객용 기능**
+    *   스타일리스트 위치 기반 검색 및 필터링 기능
+    *   미용 서비스 예약 시스템 (원하는 날짜/시간 선택)
+    *   Toss Payments 기반 간편 결제 및 승인 (모의 결제 테스트 환경)
+    *   예약 관리 및 취소 기능
+*   **스타일리스트(미용사)용 관리 기능**
+    *   프로필 편집 (자기소개, 경력, 미용실 위치)
+    *   영업시간 및 휴무일 관리
+    *   제공 서비스 및 가격 관리 (추가, 수정, 삭제)
+    *   포트폴리오(작업 이미지) 관리
+    *   고객 예약 확인 및 승인/거절, 완료 시스템 처리
+
+## 기술 스택
+
+*   **Backend:** Java 17, Spring Boot 3.2, Spring Security, Spring Data JPA, MySQL
+*   **Frontend:** Vue.js 3, Pinia, Vue Router, Vite
+*   **결제 연동:** Toss Payments SDK
+*   **소셜 로그인:** Kakao OAuth2 (지원 예정)
+
+## 실행 방법
+
+### Backend (Spring Boot)
+\`\`\`bash
+# /src/main/resources/application.yml (또는 환경변수)에서 DB 설정(MySQL) 필요
+./gradlew bootRun
+\`\`\`
+
+### Frontend (Vue.js)
+\`\`\`bash
+cd frontend
+npm install
+npm run dev
+\`\`\`
