@@ -1,0 +1,40 @@
+import api from './index'
+
+export const stylistApi = {
+  /** GET /api/stylists — 스타일리스트 목록 (keyword, location 검색) */
+  getStylists: (params) => api.get('/api/stylists', { params }),
+
+  /** GET /api/stylists/{id} — 스타일리스트 상세 조회 */
+  getStylist: (id) => api.get(`/api/stylists/${id}`),
+
+  /** GET /api/stylists/me — 내 프로필 조회 (미용사) */
+  getMyProfile: () => api.get('/api/stylists/me'),
+
+  /** PUT /api/stylists/me — 내 프로필 수정 */
+  updateProfile: (data) => api.put('/api/stylists/me', data),
+
+  // ── 서비스 관리 ──────────────────────────────────────────────
+
+  /** POST /api/stylists/me/services — 서비스 추가 */
+  addService: (data) => api.post('/api/stylists/me/services', data),
+
+  /** PUT /api/stylists/me/services/{id} — 서비스 수정 */
+  updateService: (serviceId, data) => api.put(`/api/stylists/me/services/${serviceId}`, data),
+
+  /** DELETE /api/stylists/me/services/{id} — 서비스 삭제 */
+  deleteService: (serviceId) => api.delete(`/api/stylists/me/services/${serviceId}`),
+
+  // ── 포트폴리오 관리 ──────────────────────────────────────────
+
+  /** POST /api/stylists/me/portfolio — 포트폴리오 추가 */
+  addPortfolio: (imageUrl, caption) =>
+    api.post('/api/stylists/me/portfolio', null, { params: { imageUrl, caption } }),
+
+  /** DELETE /api/stylists/me/portfolio/{id} — 포트폴리오 삭제 */
+  deletePortfolio: (portfolioId) => api.delete(`/api/stylists/me/portfolio/${portfolioId}`),
+
+  // ── 영업시간 관리 ─────────────────────────────────────────────
+
+  /** PUT /api/stylists/me/hours — 영업시간 수정 (요일 하나 단위) */
+  updateHours: (data) => api.put('/api/stylists/me/hours', data),
+}

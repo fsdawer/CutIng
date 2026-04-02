@@ -1,0 +1,392 @@
+<template>
+  <main class="page">
+    <div class="container">
+      <div class="booking-header">
+        <button class="back-btn" @click="$router.back()">← 뒤로</button>
+        <h1 class="section-title">예약하기</h1>
+        <p class="section-subtitle" v-if="stylist.name">{{ stylist.name }} · {{ stylist.salonName }}</p>
+      </div>
+
+      <!-- Step Indicator -->
+      <div class="steps">
+        <div v-for="(step, i) in steps" :key="i" class="step" :class="{ active: currentStep === i, done: currentStep > i }">
+          <div class="step-dot">{{ currentStep > i ? '✓' : i + 1 }}</div>
+          <span>{{ step }}</span>
+        </div>
+      </div>
+
+      <div class="booking-body">
+        <!-- Step 1: 날짜/시간 선택 -->
+        <div v-if="currentStep === 0" class="card step-card">
+          <h2 class="step-title">날짜 &amp; 시간 선택</h2>
+
+          <!-- Calendar -->
+          <div class="calendar">
+            <div class="cal-header">
+              <button @click="prevMonth">‹</button>
+              <span>{{ currentYear }}년 {{ currentMonth + 1 }}월</span>
+              <button @click="nextMonth">›</button>
+            </div>
+            <div class="cal-weekdays">
+              <span v-for="d in ['일','월','화','수','목','금','토']" :key="d">{{ d }}</span>
+            </div>
+            <div class="cal-days">
+              <span v-for="blank in startDay" :key="'b'+blank" class="cal-day empty"></span>
+              <button
+                v-for="day in daysInMonth"
+                :key="day"
+                class="cal-day"
+                :class="{
+                  selected: selectedDate === day,
+                  today: isToday(day),
+                  past: isPast(day)
+                }"
+                :disabled="isPast(day)"
+                @click="selectedDate = day"
+              >{{ day }}</button>
+            </div>
+          </div>
+
+          <!-- Time Slots -->
+          <div v-if="selectedDate" class="time-section">
+            <h3 class="time-title">시간 선택</h3>
+            <div class="time-slots">
+              <button
+                v-for="slot in timeSlots"
+                :key="slot"
+                class="time-slot"
+                :class="{ selected: selectedTime === slot }"
+                @click="selectedTime = slot"
+              >{{ slot }}</button>
+            </div>
+          </div>
+
+          <div class="step-actions">
+            <button
+              class="btn btn-primary btn-lg"
+              :disabled="!selectedDate || !selectedTime"
+              @click="currentStep++"
+            >다음 →</button>
+          </div>
+        </div>
+
+        <!-- Step 2: 서비스 선택 -->
+        <div v-if="currentStep === 1" class="card step-card">
+          <h2 class="step-title">서비스 &amp; 요구사항</h2>
+
+          <div v-if="servicesLoading" style="text-align:center;padding:40px 0">
+            <div class="spinner"></div>
+          </div>
+          <div v-else>
+            <!-- Service Select -->
+            <div class="form-group" style="margin-bottom:24px">
+              <label class="form-label">서비스 선택</label>
+              <div class="service-options">
+                <button
+                  v-for="s in services"
+                  :key="s.id"
+                  class="service-opt"
+                  :class="{ selected: selectedService?.id === s.id }"
+                  @click="selectedService = s"
+                >
+                  <span class="so-name">{{ s.name }}</span>
+                  <span class="so-price">{{ s.price?.toLocaleString() }}원</span>
+                </button>
+              </div>
+              <p v-if="!services.length" style="color:var(--color-text-muted);font-size:14px;margin-top:12px">
+                등록된 서비스가 없습니다.
+              </p>
+            </div>
+
+            <!-- Request Text -->
+            <div class="form-group" style="margin-bottom:20px">
+              <label class="form-label">요구사항 / 건의사항</label>
+              <textarea
+                v-model="requestText"
+                class="form-input"
+                rows="4"
+                placeholder="원하시는 스타일, 참고사항 등을 자유롭게 작성해 주세요..."
+              ></textarea>
+            </div>
+          </div>
+
+          <div class="step-actions">
+            <button class="btn btn-ghost" @click="currentStep--">← 이전</button>
+            <button
+              class="btn btn-primary btn-lg"
+              :disabled="!selectedService"
+              @click="currentStep++"
+            >다음 →</button>
+          </div>
+        </div>
+
+        <!-- Step 3: 확인 및 예약 -->
+        <div v-if="currentStep === 2" class="card step-card">
+          <h2 class="step-title">예약 확인</h2>
+
+          <div class="confirm-info">
+            <div class="confirm-row">
+              <span class="cr-label">미용사</span>
+              <span class="cr-value">{{ stylist.name }} · {{ stylist.salonName }}</span>
+            </div>
+            <div class="confirm-row">
+              <span class="cr-label">날짜 &amp; 시간</span>
+              <span class="cr-value">{{ reservedAtDisplay }}</span>
+            </div>
+            <div class="confirm-row">
+              <span class="cr-label">서비스</span>
+              <span class="cr-value">{{ selectedService?.name }}</span>
+            </div>
+            <div class="confirm-row">
+              <span class="cr-label">요구사항</span>
+              <span class="cr-value">{{ requestText || '없음' }}</span>
+            </div>
+            <div class="confirm-row total">
+              <span class="cr-label">결제 금액</span>
+              <span class="cr-value gold">{{ selectedService?.price?.toLocaleString() }}원</span>
+            </div>
+          </div>
+
+          <p v-if="bookingError" class="error-msg">{{ bookingError }}</p>
+
+          <div class="step-actions">
+            <button class="btn btn-ghost" @click="currentStep--">← 이전</button>
+            <button
+              class="btn btn-primary btn-lg"
+              :disabled="booking"
+              @click="submitReservation"
+            >
+              <span v-if="booking" class="spinner" style="width:18px;height:18px;border-width:2px;"></span>
+              <span v-else>예약 확정하기 →</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { stylistApi } from '@/api/stylist'
+import { reservationApi } from '@/api/reservation'
+
+const route = useRoute()
+const router = useRouter()
+const stylistId = route.params.stylistId
+
+const currentStep = ref(0)
+const steps = ['날짜/시간', '서비스/요구사항', '예약 확인']
+
+const stylist = ref({})
+const services = ref([])
+const servicesLoading = ref(false)
+const selectedService = ref(null)
+const selectedDate = ref(null)
+const selectedTime = ref(null)
+const requestText = ref('')
+const booking = ref(false)
+const bookingError = ref('')
+
+// Calendar
+const today = new Date()
+const currentYear = ref(today.getFullYear())
+const currentMonth = ref(today.getMonth())
+
+const daysInMonth = computed(() =>
+  new Date(currentYear.value, currentMonth.value + 1, 0).getDate()
+)
+const startDay = computed(() =>
+  new Date(currentYear.value, currentMonth.value, 1).getDay()
+)
+
+function prevMonth() {
+  if (currentMonth.value === 0) { currentYear.value--; currentMonth.value = 11 }
+  else currentMonth.value--
+}
+function nextMonth() {
+  if (currentMonth.value === 11) { currentYear.value++; currentMonth.value = 0 }
+  else currentMonth.value++
+}
+function isToday(day) {
+  const d = new Date()
+  return d.getFullYear() === currentYear.value && d.getMonth() === currentMonth.value && d.getDate() === day
+}
+function isPast(day) {
+  const d = new Date(currentYear.value, currentMonth.value, day)
+  const t = new Date(); t.setHours(0, 0, 0, 0)
+  return d < t
+}
+
+// 시간 슬롯 (09:00 ~ 18:00, 30분 단위)
+const timeSlots = Array.from({ length: 19 }, (_, i) => {
+  const h = Math.floor(i / 2) + 9
+  const m = i % 2 === 0 ? '00' : '30'
+  return `${String(h).padStart(2, '0')}:${m}`
+})
+
+const reservedAtDisplay = computed(() => {
+  if (!selectedDate.value || !selectedTime.value) return ''
+  const mm = String(currentMonth.value + 1).padStart(2, '0')
+  const dd = String(selectedDate.value).padStart(2, '0')
+  return `${currentYear.value}.${mm}.${dd} ${selectedTime.value}`
+})
+
+onMounted(async () => {
+  servicesLoading.value = true
+  try {
+    const res = await stylistApi.getStylist(stylistId)
+    stylist.value = res.data
+    services.value = res.data.services ?? []
+  } catch (e) {
+    console.error('스타일리스트 정보 로드 실패', e)
+  } finally {
+    servicesLoading.value = false
+  }
+})
+
+async function submitReservation() {
+  booking.value = true
+  bookingError.value = ''
+  try {
+    const mm = String(currentMonth.value + 1).padStart(2, '0')
+    const dd = String(selectedDate.value).padStart(2, '0')
+    const reservedAt = `${currentYear.value}-${mm}-${dd}T${selectedTime.value}:00`
+
+    await reservationApi.create({
+      stylistId: Number(stylistId),
+      serviceId: selectedService.value.id,
+      reservedAt,
+      requestMemo: requestText.value || null,
+    })
+
+    alert('예약이 완료되었습니다! 마이페이지에서 확인하세요.')
+    router.push('/mypage')
+  } catch (e) {
+    bookingError.value = e.response?.data?.message || '예약 중 오류가 발생했습니다.'
+  } finally {
+    booking.value = false
+  }
+}
+</script>
+
+<style scoped>
+.booking-header { margin-bottom: 28px; }
+.back-btn { background: none; border: none; color: var(--color-text-secondary); font-size: 14px; cursor: pointer; margin-bottom: 12px; }
+.back-btn:hover { color: var(--color-gold); }
+
+.steps {
+  display: flex;
+  gap: 0;
+  margin-bottom: 32px;
+  position: relative;
+}
+.steps::before {
+  content: '';
+  position: absolute;
+  top: 16px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-border);
+}
+.step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  position: relative;
+}
+.step-dot {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--color-bg-surface);
+  border: 2px solid var(--color-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 1;
+}
+.step.active .step-dot { border-color: var(--color-gold); color: var(--color-gold); }
+.step.active { color: var(--color-gold); }
+.step.done .step-dot { background: var(--color-gold); border-color: var(--color-gold); color: #1a1206; }
+
+.booking-body { max-width: 640px; margin: 0 auto; }
+.step-title { font-size: 18px; font-weight: 700; margin-bottom: 24px; }
+
+/* Calendar */
+.calendar { margin-bottom: 24px; }
+.cal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 16px; font-weight: 600;
+}
+.cal-header button {
+  background: none; border: 1px solid var(--color-border); border-radius: var(--radius-sm);
+  width: 32px; height: 32px; color: var(--color-text-primary); font-size: 18px; cursor: pointer;
+}
+.cal-header button:hover { border-color: var(--color-gold); color: var(--color-gold); }
+.cal-weekdays {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  text-align: center; font-size: 12px; color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+.cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-day {
+  aspect-ratio: 1; border-radius: var(--radius-sm);
+  border: 1.5px solid transparent; background: transparent;
+  color: var(--color-text-primary); font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: var(--transition);
+}
+.cal-day:hover:not(.empty):not([disabled]) { border-color: var(--color-gold); color: var(--color-gold); }
+.cal-day.selected { background: var(--color-gold); color: #ffffff; font-weight: 700; }
+.cal-day.today:not(.selected) { border-color: rgba(201,169,110,0.4); }
+.cal-day.past, .cal-day[disabled] { color: var(--color-text-muted); cursor: not-allowed; }
+.cal-day.empty { pointer-events: none; }
+
+/* Time Slots */
+.time-section { margin-top: 20px; }
+.time-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+.time-slots { display: flex; flex-wrap: wrap; gap: 8px; }
+.time-slot {
+  padding: 8px 16px; border-radius: var(--radius-sm);
+  border: 1.5px solid var(--color-border); background: transparent;
+  color: var(--color-text-primary); font-size: 13px; cursor: pointer;
+  transition: var(--transition);
+}
+.time-slot:hover { border-color: var(--color-gold); color: var(--color-gold); }
+.time-slot.selected { background: var(--color-gold); border-color: var(--color-gold); color: #ffffff; font-weight: 600; }
+
+/* Service options */
+.service-options { display: flex; flex-direction: column; gap: 8px; }
+.service-opt {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px; border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-border); background: transparent;
+  cursor: pointer; transition: var(--transition);
+}
+.service-opt:hover { border-color: rgba(201,169,110,0.4); }
+.service-opt.selected { border-color: var(--color-gold); background: rgba(201,169,110,0.08); }
+.so-name { font-size: 15px; color: var(--color-text-primary); }
+.so-price { font-size: 15px; font-weight: 600; color: var(--color-gold); }
+
+/* Confirm */
+.confirm-info {
+  background: var(--color-bg-surface); border-radius: var(--radius-md);
+  padding: 20px; margin-bottom: 24px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.confirm-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.cr-label { font-size: 13px; color: var(--color-text-muted); flex-shrink: 0; }
+.cr-value { font-size: 14px; color: var(--color-text-primary); text-align: right; }
+.confirm-row.total { padding-top: 14px; border-top: 1px solid var(--color-border); }
+.cr-value.gold { font-size: 18px; font-weight: 700; color: var(--color-gold); }
+
+.error-msg { color: var(--color-danger); font-size: 13px; text-align: center; margin-bottom: 16px; }
+.step-actions { display: flex; justify-content: space-between; margin-top: 28px; gap: 12px; }
+.step-actions .btn { flex: 1; }
+</style>
